@@ -1,0 +1,11 @@
+h = vector de 50 dimensiones que representa a paper_0 en el espacio de embeddings. Cada paper del KG tiene su propio
+vector.
+
+r_cites =  el vector de 50 dimensiones que representa la relación "cites". Como solo hay una relación en este KG, hay un único
+vector de relación.
+
+La idea central de TransE es que si paper_A cita a paper_B, entonces:
+
+  embedding(paper_A) + embedding("cites") ≈ embedding(paper_B)
+           h                 r_cites                  t
+
