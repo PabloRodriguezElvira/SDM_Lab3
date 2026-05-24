@@ -9,3 +9,82 @@ La idea central de TransE es que si paper_A cita a paper_B, entonces:
   embedding(paper_A) + embedding("cites") ≈ embedding(paper_B)
            h                 r_cites                  t
 
+------------------------------------------------------------------------------------------------------------------
+
+Métricas:
+
+Hits@K
+
+  Mide el porcentaje de veces que la entidad correcta aparece entre las K primeras posiciones del ranking.
+
+  Hits@1 = % de veces que la entidad correcta es la #1
+  Hits@3 = % de veces que la entidad correcta está en el top 3
+
+  - Valor entre 0 y 1, cuanto más alto mejor
+  - Hits@1 es el más exigente: el modelo tiene que acertar a la primera
+  - Hits@3 es más permisivo
+
+  Ejemplo concreto: si hay 19.000 entidades y el modelo pone la correcta en posición 2 → cuenta para Hits@3 pero no para
+   Hits@1.
+
+  ---
+  MRR — Mean Reciprocal Rank (inverse_harmonic_mean_rank en tu versión de PyKEEN)
+
+  Para cada triple del test, se calcula 1 / rank (el recíproco del rango), y luego se promedia sobre todos los triples:
+
+  MRR = media( 1/rank_1, 1/rank_2, ..., 1/rank_N )
+
+  - Si la entidad correcta queda en posición 1  → contribuye 1.0
+  - Si queda en posición 2  → contribuye 0.5
+  - Si queda en posición 10 → contribuye 0.1
+  - Si queda en posición 1000 → contribuye 0.001 (casi nada)
+
+  El recíproco penaliza mucho los rankings malos, pero de forma más suave que Hits@1. Es la métrica más usada porque
+  resume bien la calidad global del ranking.
+
+------------------------------------------------------------------------------------------------------------------
+
+A.1. The most basic model
+
+Pregunta a resolver -> ¿cuál es el embedding más probable para el paper que cita trabajos similares a los que cita paper_h (paper_6)?
+
+h = t-r ->
+h = avg_cited-r ->
+h = [embedding más probable (estrella verde)]
+
+------------------------------------------------------------------------------------------------------------------
+
+A.4 NEGATIVE SAMPLING
+
+Los KGE se entrenan con tripletas positivas (h, r, t) que sabemos que son verdaderas. Para aprender, el modelo
+  necesita también ejemplos negativos — tripletas falsas como (h, r, t') donde t' es una entidad aleatoria que no es la
+  cola correcta. El modelo aprende a puntuar las tripletas positivas más alto que las negativas.
+
+  ---
+  Las dos estrategias
+
+  Uniform Sampling
+  Corrompe la cabeza o la cola con probabilidad 50/50, independientemente de la relación.
+
+  Bernoulli Sampling
+  Ajusta la probabilidad según el tipo de relación. Se basa en dos estadísticos:
+
+  - tph (tails per head): media de colas distintas que tiene cada cabeza → mide si la relación es one-to-many
+  - hpt (heads per tail): media de cabezas distintas que tiene cada cola → mide si la relación es many-to-one
+
+  La lógica es: si una relación es one-to-many (un paper cita muchos), es más fácil generar un falso negativo
+  corrompiendo la cabeza que la cola, así que se corrompe más la cabeza.
+
+  P(corromper cabeza) = tph / (tph + hpt)
+  P(corromper cola)   = hpt / (tph + hpt)
+
+  ---
+  Por qué en PubMed ambas estrategias son iguales
+
+  El grafo PubMed es no dirigido: cada arista (A, B) aparece como dos tripletas, paper_A --cites--> paper_B y paper_B
+  --cites--> paper_A. Esto hace que cada nodo tenga exactamente el mismo grado de entrada y de salida, por lo que:
+
+  tph ≈ hpt  =>  P(corromper cabeza) ≈ 0.5  ≈  P(corromper cola)
+
+  Bernoulli colapsa a Uniform. No hay beneficio en usar Bernoulli aquí porque la simetría del grafo elimina la
+  diferencia entre los dos tipos de corrupción.
